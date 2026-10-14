@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPV ROVER</title>
+    
+    <!-- Google Fonts: Share Tech Mono & Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.min.css" integrity="sha512-...=" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body class="">
+    <div class="header">
+        <h1>Control the FPV ROVER</h1>
+            <div class="status-container" id="status-container">
+                <p id="status">
+                    <i class="fa-solid fa-circle-check no_error"></i>
+                    <i class="fa-solid fa-circle-xmark error"></i>
+                    <span id="status-text">Connected!</span>
+                </p>
+            </div>
+        <button id="mode-toggle">
+            <i class="fa-solid fa-moon moon-icon"></i>
+            <i class="fa-solid fa-sun sun-icon"></i>
+        </button>
+    </div>
+    
+    <h2>Live video feed</h2>
+    
+    <div class="vid-details">
+        <img src="" alt="" id="vid-stream">
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn btn-up" id="btn-up">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+        <button class="control-btn btn-down" id="btn-down">
+            <i class="fa-solid fa-arrow-down"></i>
+        </button>
+        <button class="control-btn btn-left" id="btn-left">
+            <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <button class="control-btn btn-right" id="btn-right">
+            <i class="fa-solid fa-arrow-right"></i>
+        </button>
+    </div>
+</body>
+</html>
