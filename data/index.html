@@ -51,7 +51,6 @@ body.dark-theme {
     font-variant-numeric: tabular-nums;
 }
 
-/* Fonts: the rover has no internet, so only system fonts can load */
 * {
     padding: 0;
     margin: 0;
@@ -65,7 +64,6 @@ body {
     min-height: 100vh;
 }
 
-/* Header: 3-column grid keeps the status badge centred */
 .header {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -98,7 +96,6 @@ h2 {
     margin-bottom: 10px;
 }
 
-/* Video */
 .vid-details {
     display: flex;
     justify-content: center;
@@ -114,10 +111,9 @@ h2 {
 .vid-details img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* use 'contain' if you don't want any cropping */
+    object-fit: cover;
 }
 
-/* Status badge */
 #status {
     display: flex;
     justify-content: center;
@@ -151,7 +147,6 @@ h2 {
 }
 .status-container.has-error #status { color: var(--status-color-error); }
 
-/* Dark / light toggle */
 body .sun-icon { display: none; }
 body .moon-icon { display: inline-block; }
 body.dark-theme .sun-icon { display: inline-block; }
@@ -183,7 +178,6 @@ body.dark-theme .moon-icon { display: none; }
     color: var(--btn-text-active);
 }
 
-/* Controls: cross layout (up on top, left/down/right underneath) */
 .controls {
     display: grid;
     grid-template-columns: repeat(3, 4.5rem);
@@ -212,7 +206,6 @@ body.dark-theme .moon-icon { display: none; }
     border-radius: 0.5rem;
     cursor: pointer;
     transition: 0.3s ease;
-    /* stop text selection, long-press menus and double-tap zoom while driving */
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
@@ -243,7 +236,6 @@ body.dark-theme .moon-icon { display: none; }
 
 .control-btn.pressed { transform: scale(0.95); }
 
-/* Small screens */
 @media (max-width: 600px) {
     .header {
         grid-template-columns: 1fr auto;
@@ -269,7 +261,7 @@ body.dark-theme .moon-icon { display: none; }
             <p id="status">
                 <svg class="no_error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 <svg class="error" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                <span id="status-text">Connected!</span>
+                <span id="status-text">Connecting...</span>
             </p>
         </div>
         <button id="mode-toggle" aria-label="Toggle dark mode">
@@ -316,7 +308,6 @@ const statusText = document.getElementById('status-text');
 const vidStream = document.getElementById('vid-stream');
 const fpsText = document.getElementById('fps-text');
 
-/* ---------- Theme ---------- */
 try {
     if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme');
 } catch (e) {}
@@ -326,22 +317,37 @@ modeToggleBtn.addEventListener('click', () => {
     try { localStorage.setItem('theme', isDark ? 'dark' : 'light'); } catch (e) {}
 });
 
-/* ---------- Status badge ---------- */
 function updateStatus(hasError) {
     statusContainer.classList.toggle('has-error', hasError);
     statusText.textContent = hasError ? 'Disconnected' : 'Connected!';
 }
 
-/* ---------- Sending commands ---------- */
-let pending = 0;
+let ws;
+function connectWS() {
+    ws = new WebSocket(`ws://${window.location.hostname}/ws`);
+    
+    ws.onopen = () => updateStatus(false);
+    
+    ws.onclose = () => { 
+        updateStatus(true); 
+        fpsText.textContent = '';
+        setTimeout(connectWS, 2000); 
+    };
+    
+    ws.onerror = () => updateStatus(true);
+
+    ws.onmessage = (event) => {
+        if (event.data.startsWith("FPS:")) {
+            fpsText.textContent = `${event.data.split(":")[1]} FPS`;
+        }
+    };
+}
+connectWS();
 
 function sendCommand(action, isRepeat = false) {
-    if (isRepeat && pending > 0) return; // don't pile up requests on a slow link
-    pending++;
-    fetch(`/control?action=${action}`, { cache: 'no-store' })
-        .then(response => updateStatus(!response.ok))
-        .catch(() => updateStatus(true))
-        .finally(() => { pending--; });
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(action);
+    }
 }
 
 const actionMap = {
@@ -358,10 +364,7 @@ const keyMap = {
     ArrowRight: 'btn-right', KeyD: 'btn-right'
 };
 
-/* While a button is held we re-send the command every 150 ms.
-   The ESP32 stops the motors by itself if it hears nothing for 500 ms,
-   so a lost "stop" or a dropped Wi-Fi link can't leave the rover running. */
-const REPEAT_MS = 150;
+const REPEAT_MS = 250;
 let held = [];
 let currentAction = null;
 let repeatTimer = null;
@@ -402,7 +405,6 @@ function releaseAll() {
     held.slice().forEach(id => release(id));
 }
 
-/* ---------- Keyboard ---------- */
 document.addEventListener('keydown', (event) => {
     const id = keyMap[event.code];
     if (!id) return;
@@ -417,54 +419,37 @@ document.addEventListener('keyup', (event) => {
     release(id);
 });
 
-// If the tab loses focus we never get a keyup, so stop everything
 window.addEventListener('blur', releaseAll);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
-/* ---------- Mouse / touch (pointer events cover both) ---------- */
 Object.keys(actionMap).forEach(id => {
     const btn = document.getElementById(id);
     if (!btn) return;
 
     btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        // capture so the release is still received if the finger/mouse slides off the button
         try { btn.setPointerCapture(e.pointerId); } catch (err) {}
         press(id);
     });
-    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => {
+    // 🚀 Added pointerleave to fix stuck buttons
+    ['pointerup', 'pointercancel', 'pointerleave', 'lostpointercapture'].forEach(type => {
         btn.addEventListener(type, () => release(id));
     });
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
 });
 
-/* ---------- Video stream (served on port 81) ---------- */
+let lastStreamStart = 0;
+
 function startStream() {
+    lastStreamStart = Date.now();
     vidStream.src = `http://${window.location.hostname}:81/stream?t=${Date.now()}`;
 }
 
 vidStream.addEventListener('error', () => {
-    updateStatus(true);
-    setTimeout(startStream, 2000); // retry
+    setTimeout(startStream, 2000);
 });
 
-/* ---------- Connection check ---------- */
-function ping() {
-    fetch('/stats', { cache: 'no-store' })
-        .then(response => {
-            updateStatus(!response.ok);
-            return response.ok ? response.text() : '';
-        })
-        .then(text => {
-            const parts = text.split(',');
-            fpsText.textContent = (parts.length === 2 && Number(parts[0]) > 0) ? `${parts[0]} FPS` : '';
-        })
-        .catch(() => updateStatus(true));
-}
-
 startStream();
-ping();
-setInterval(ping, 2000);
 
 </script>
 </body>
